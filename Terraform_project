@@ -1,0 +1,93 @@
+# Define the provider (AWS) and the region
+provider "aws" {
+  region      = "us-east-1"
+  access_key  = "YOUR_ACCESS_KEY"
+  secret_key  = "YOUR_SECRET_KEY"
+}
+
+# Create a VPC
+resource "aws_vpc" "my_vpc" {
+  cidr_block = "10.0.0.0/16"
+}
+
+# Create two subnets in the VPC
+resource "aws_subnet" "subnet_a" {
+  vpc_id            = aws_vpc.my_vpc.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "us-east-1a"
+}
+
+resource "aws_subnet" "subnet_b" {
+  vpc_id            = aws_vpc.my_vpc.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "us-east-1b"
+}
+
+# Create an Internet Gateway and attach it to the VPC
+resource "aws_internet_gateway" "my_igw" {
+  vpc_id = aws_vpc.my_vpc.id
+}
+
+# Create a Route Table
+resource "aws_route_table" "my_route_table" {
+  vpc_id = aws_vpc.my_vpc.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.my_igw.id
+  }
+}
+
+# Associate the subnets with the route table
+resource "aws_route_table_association" "subnet_a_association" {
+  subnet_id      = aws_subnet.subnet_a.id
+  route_table_id = aws_route_table.my_route_table.id
+}
+
+resource "aws_route_table_association" "subnet_b_association" {
+  subnet_id      = aws_subnet.subnet_b.id
+  route_table_id = aws_route_table.my_route_table.id
+}
+
+# Create a Security Group
+resource "aws_security_group" "my_security_group" {
+  name        = "my-security-group"
+  description = "Allow SSH and HTTP traffic"
+  vpc_id      = aws_vpc.my_vpc.id
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Create an EC2 instance
+resource "aws_instance" "my_ec2_instance" {
+  ami           = "ami-0323c3dd2da7fb37d" # Amazon Linux 2 AMI (HVM), SSD Volume Type
+  instance_type = "t2.micro"
+  subnet_id     = aws_subnet.subnet_a.id
+
+  vpc_security_group_ids = [aws_security_group.my_security_group.id]
+
+  key_name = "my-keypair"
+
+  tags = {
+    Name = "my-ec2-instance"
+  }
+}
